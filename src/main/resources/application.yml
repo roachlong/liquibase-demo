@@ -1,0 +1,33 @@
+
+logging:
+  level:
+    org:
+      hibernate:
+        orm:
+          jdbc:
+            bind: TRACE
+server:
+  port: 8081
+spring:
+  application:
+    name: liquibase-demo
+  datasource:
+    driver-class-name: org.h2.Driver
+    password: password
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=1;DB_CLOSE_ON_EXIT=FALSE;MODE=POSTGRESQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;INIT=CREATE SCHEMA IF NOT EXISTS LIBRARY
+    username: sa
+  h2:
+    console:
+      enabled: true
+  jpa:
+    database: postgresql
+    defer-database-initialization: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        show_sql: true
+  liquibase:
+    change-log: db/changelog/changelog-master.xml

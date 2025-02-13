@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    password: password
+    url: jdbc:postgresql://localhost:26257/bookdb?currentSchema=library
+    username: bookuser
+    # password: docker
+    # url: jdbc:postgresql://localhost:5432/bookdb?currentSchema=library
+    # username: postgres
+  jpa:
+    database: postgresql
+    defer-database-initialization: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        show_sql: true
+  liquibase:
+    password: password
+    user: bookadmin
+  sql:
+    init:
+      mode: always
