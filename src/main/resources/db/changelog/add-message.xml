@@ -18,6 +18,11 @@
             STORING (text)
             WHERE read = false;
         </sql>
+
+        <!-- Wait for the index creation job to complete -->
+        <customChange class="com.cockroachdb.liquibase_demo.WaitForIndexCreation">
+            <param name="indexName" value="idx_message_unread"/>
+        </customChange>
     </changeSet>
 
     <changeSet author="jleelong" id="populate-message-table">

@@ -6,14 +6,18 @@
             ALTER TABLE library.message
             ADD COLUMN id_uuid UUID;
         </sql>
+
+        <!-- Wait for the table alteration job to complete -->
+        <customChange class="com.cockroachdb.liquibase_demo.WaitForAlterTableCompletion">
+            <param name="tableName" value="bookdb.library.message"/>
+        </customChange>
     </changeSet>
 
     <changeSet author="jleelong" id="backfill-uuid-column">
         <comment>Backfill UUIDs by casting from existing string-based IDs</comment>
-        <sql>
-            UPDATE library.message
-            SET id_uuid = id::UUID;
-        </sql>
+        <customChange class="com.cockroachdb.liquibase_demo.BackfillUUIDField">
+            <param name="tableName" value="bookdb.library.message"/>
+        </customChange>
     </changeSet>
 
     <changeSet author="jleelong" id="alter-uuid-column">
@@ -23,6 +27,11 @@
             ALTER COLUMN id_uuid SET NOT NULL,
             ALTER COLUMN id_uuid SET DEFAULT gen_random_uuid();
         </sql>
+
+        <!-- Wait for the table alteration job to complete -->
+        <customChange class="com.cockroachdb.liquibase_demo.WaitForAlterTableCompletion">
+            <param name="tableName" value="bookdb.library.message"/>
+        </customChange>
     </changeSet>
 
     <changeSet author="jleelong" id="replace-primary-key">
@@ -31,6 +40,11 @@
             ALTER TABLE library.message
             ALTER PRIMARY KEY USING COLUMNS (id_uuid);
         </sql>
+
+        <!-- Wait for the table alteration job to complete -->
+        <customChange class="com.cockroachdb.liquibase_demo.WaitForAlterTableCompletion">
+            <param name="tableName" value="bookdb.library.message"/>
+        </customChange>
     </changeSet>
 
     <changeSet author="jleelong" id="rename-uuid-column">
@@ -39,6 +53,11 @@
             ALTER TABLE library.message RENAME COLUMN id TO id_string;
             ALTER TABLE library.message RENAME COLUMN id_uuid TO id;
         </sql>
+
+        <!-- Wait for the table alteration job to complete -->
+        <customChange class="com.cockroachdb.liquibase_demo.WaitForAlterTableCompletion">
+            <param name="tableName" value="bookdb.library.message"/>
+        </customChange>
     </changeSet>
 
     <changeSet author="jleelong" id="drop-old-id-column">
@@ -46,5 +65,10 @@
         <sql>
             ALTER TABLE library.message DROP COLUMN id_string;
         </sql>
+
+        <!-- Wait for the table alteration job to complete -->
+        <customChange class="com.cockroachdb.liquibase_demo.WaitForAlterTableCompletion">
+            <param name="tableName" value="bookdb.library.message"/>
+        </customChange>
     </changeSet>
 </databaseChangeLog>
