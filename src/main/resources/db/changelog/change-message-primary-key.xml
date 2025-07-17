@@ -1,0 +1,50 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:pro="http://www.liquibase.org/xml/ns/pro" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/pro http://www.liquibase.org/xml/ns/pro/liquibase-pro-4.1.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.1.xsd">
+    <changeSet author="jleelong" id="add-uuid-column">
+        <comment>Add a new UUID column</comment>
+        <sql>
+            ALTER TABLE library.message
+            ADD COLUMN id_uuid UUID;
+        </sql>
+    </changeSet>
+
+    <changeSet author="jleelong" id="backfill-uuid-column">
+        <comment>Backfill UUIDs by casting from existing string-based IDs</comment>
+        <sql>
+            UPDATE library.message
+            SET id_uuid = id::UUID;
+        </sql>
+    </changeSet>
+
+    <changeSet author="jleelong" id="alter-uuid-column">
+        <comment>Alter properties of UUID column with default value</comment>
+        <sql>
+            ALTER TABLE library.message
+            ALTER COLUMN id_uuid SET NOT NULL,
+            ALTER COLUMN id_uuid SET DEFAULT gen_random_uuid();
+        </sql>
+    </changeSet>
+
+    <changeSet author="jleelong" id="replace-primary-key">
+        <comment>Replace primary key with id_uuid column</comment>
+        <sql>
+            ALTER TABLE library.message
+            ALTER PRIMARY KEY USING COLUMNS (id_uuid);
+        </sql>
+    </changeSet>
+
+    <changeSet author="jleelong" id="rename-uuid-column">
+        <comment>Rename String and UUID columns</comment>
+        <sql>
+            ALTER TABLE library.message RENAME COLUMN id TO id_string;
+            ALTER TABLE library.message RENAME COLUMN id_uuid TO id;
+        </sql>
+    </changeSet>
+
+    <changeSet author="jleelong" id="drop-old-id-column">
+        <comment>Drop old string ID column</comment>
+        <sql>
+            ALTER TABLE library.message DROP COLUMN id_string;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

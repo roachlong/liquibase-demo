@@ -52,7 +52,7 @@ git clone https://github.com/roachlong/liquibase-demo.git
 cd liquibase-demo
 ```
 
-# Execution
+# Failed Transaction Rollback Scenario
 Now open the liquibase-demo project folder in VS Code and run the LiquibaseDemoApplication launch configuration to test the scenario outlined in the changelog.
 
 1) running the launch configuration will execute the liqubase changesets including the test-changeset-transaction
@@ -66,7 +66,21 @@ Now open the liquibase-demo project folder in VS Code and run the LiquibaseDemoA
 ![image](https://github.com/user-attachments/assets/7e33e28b-01f9-4d8a-961f-09e4f782ff7f)
 
 
+# Change String Based Primary Key to UUID
+For this scenario we want to comment out the include test-changeset-transaction.xml file in the changelog-master.xml and then run the LiquibaseDemoApplication launch configuration.
 
+The first changelog, add-message.xml, creates a representative table with a partial index and populates the table with a million sample records.  Note that the partial index doesn't include the id field, since the primary key is implicitly stored with all secondary indexes.  And the side effect is that we don't need to redefine the secondary index when we switch the primary key.
+
+The second changelog, change-message-primary-key, is setup as a series of changesets to optimize switching the data type of a string based UUID primary key column to a UUID field.
+
+1) First we add a new nullable UUID column to the table
+2) Then we'll backfill the column with the current id field string values cast to a UUID
+3) Now we can alter the UUID column with a default value and NOT NULL property
+4) And replace the primary key with the new UUID column
+5) Then we switch the names of our string based and UUID columns
+6) And finally we can drop the old stirng based column
+
+The backfill step will take the longest time because it is a large transaction.  Ig necessary, we can improve performance by creating a Java component that will batch the updates into smaller transactions.  However, all of the other changesets are nearly instantaneous with 1MM records and low activity on the database.
 
 
 

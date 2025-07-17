@@ -1,0 +1,37 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:pro="http://www.liquibase.org/xml/ns/pro" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/pro http://www.liquibase.org/xml/ns/pro/liquibase-pro-4.1.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.1.xsd">
+    <changeSet author="jleelong" id="create-message-table">
+        <createTable tableName="message">
+            <column name="id" type="STRING(36)">
+                <constraints nullable="false" primaryKey="true"/>
+            </column>
+            <column name="text" type="STRING(100)"/>
+            <column name="read" type="BOOLEAN"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet author="jleelong" id="create-message-index">
+        <comment>Create partial index on unread messages, storing text</comment>
+        <sql>
+            CREATE INDEX idx_message_unread
+            ON library.message (read)
+            STORING (text)
+            WHERE read = false;
+        </sql>
+    </changeSet>
+
+    <changeSet author="jleelong" id="populate-message-table">
+        <comment>Insert 1 million messages with 1% unread</comment>
+        <sql>
+            INSERT INTO library.message (id, text, read)
+            SELECT
+                gen_random_uuid()::STRING AS id,
+                'Message #' || g || ': ' || md5(random()::STRING) AS text,
+                CASE
+                    WHEN g % 100 = 0 THEN false  -- 1% of records
+                    ELSE true
+                END AS read
+            FROM generate_series(1, 1000000) AS g;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

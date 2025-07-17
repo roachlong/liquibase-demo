@@ -13,6 +13,8 @@
     <include file="db/changelog/add-author-id-to-book.xml"/>
     <include file="db/changelog/add-event.xml"/>
     <include file="db/changelog/change-event-primary-key.xml"/>
-    <include file="db/changelog/test-changeset-transaction.xml"/>
+    <!--include file="db/changelog/test-changeset-transaction.xml"/-->
+    <include file="db/changelog/add-message.xml"/>
+    <include file="db/changelog/change-message-primary-key.xml"/>
 
 </databaseChangeLog>
