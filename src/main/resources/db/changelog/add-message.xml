@@ -14,7 +14,7 @@
         <comment>Create partial index on unread messages, storing text</comment>
         <sql>
             CREATE INDEX idx_message_unread
-            ON library.message (read)
+            ON library.message (id)
             STORING (text)
             WHERE read = false;
         </sql>

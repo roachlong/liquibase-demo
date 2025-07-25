@@ -2,7 +2,11 @@ This repository was created to test Liquibase schema migrations with CRDB and ve
 
 To start we can create a single-node instance on our local machine
 ```
-cockroach start-single-node --certs-dir=./certs --store=./data
+cockroach start-single-node \
+  --certs-dir=./certs \
+  --store=./data \
+  --listen-addr=localhost:26257 \
+  --background
 ```
 ![image](https://github.com/user-attachments/assets/73b9a104-5136-48c4-9db9-16d6f51dd212)
 
@@ -67,22 +71,170 @@ Now open the liquibase-demo project folder in VS Code and run the LiquibaseDemoA
 
 
 # Change String Based Primary Key to UUID
-For this scenario we want to comment out the include test-changeset-transaction.xml file in the changelog-master.xml and then run the LiquibaseDemoApplication launch configuration.
+For this scenario we want to comment out the include test-changeset-transaction.xml and change-message-primary-key.xml files in the changelog-master.xml and then run the LiquibaseDemoApplication launch configuration.
 
-The first changelog, add-message.xml, creates a representative table with a partial index and populates the table with a million sample records.  Note that the partial index doesn't include the id field, since the primary key is implicitly stored with all secondary indexes.  And the side effect is that we don't need to redefine the secondary index when we switch the primary key.
+The first changelog, add-message.xml, creates a representative table with a partial index and populates the table with a million sample records.  Note that we explicitly include he id field in the partial index so that we can avoid issues from a low cardinality index key.  And we may have to recreate the index when we switch the primary key.
 
-The second changelog, change-message-primary-key.xml, is set up as a series of changesets to optimize switching the data type of a string based UUID primary key column to a UUID field.
+To test the primary key data type change we first want to start a db workload so we can verify the online schema change process while activity is running on the database.
 
-1) First we add a new nullable UUID column to the table
-2) Then we'll backfill the column with the current id field string values cast to a UUID
-3) Now we can alter the UUID column with a default value and NOT NULL property
-4) And replace the primary key with the new UUID column
-5) Then we switch the names of our string based and UUID columns
-6) And finally we can drop the old string based column
+We can create workloads to test a variety of scenarios, including implicit and explicit transactions, bulk writes, simulate contention, connection swarms, etc.  And we can control the velocity and volume of the workload with custom properties.  I've created a few examples for message table described below.
+* num_connections: we'll simulate the workload across a number of processes
+* duration: the number of minutes for which we want to run the simulation
+* insert_freq: the percentage of cycles we want to insert new messages
+* update_freq: the percentage of cycles we want to update existing messages
+* delete_freq: the percentage of cycles we want to delete random messages
+* read_freq: the percentage of cycles we read random messages
+* batch_size: the number of records we want to touch in a single cycle
+* delay: the number of milliseconds we should pause between transactions, so we don't overload admission controls
 
-The backfill step will take the longest time because it is a large transaction.  If necessary, we can improve performance by creating a Java component that will batch the updates into smaller transactions.  However, all of the other changesets are nearly instantaneous with 1MM records and low activity on the database.
+We'll store this information as variables in the terminal shell window. On Mac variables are assigned like ```my_var="example"``` and on Windows we proceed the variable assignment with a $ symbol ```$my_var="example"```.
+```
+conn_str="postgresql://root@localhost:26257/bookdb?sslmode=require&sslcert=certs%2Fclient.root.crt&sslkey=certs%2Fclient.root.key&sslrootcert=certs%2Fca.crt"
+
+num_connections=4
+duration=60
+insert_freq=50
+update_freq=50
+delete_freq=50
+read_freq=50
+batch_size=1
+delay=100
+```
+
+Then we can use our dbworkload script to simulate the workload long enough to test our online schema changes.  **Note**: with Windows PowerShell replace each backslash double quote(\\") with a pair of double quotes around the json properties, i.e. ``` ""batch_size"": ""$batch_size"" ```
+```
+dbworkload run -w messages.py -c $num_connections -d $(( ${duration} * 60 )) --uri "$conn_str" --args "{
+        \"insert_freq\": $insert_freq,
+        \"update_freq\": $update_freq,
+        \"delete_freq\": $delete_freq,
+        \"read_freq\": $read_freq,
+        \"batch_size\": $batch_size,
+        \"delay\": $delay
+    }"
+```
+
+The second changelog, change-message-primary-key.xml, is set up as a series of changesets to optimize switching the data type of a string based UUID primary key column to a UUID field.  But before we uncomment that change log from the master we'll test the series of queries manually from the sql console first.
+
+**HOWEVER**: If you're running the dbworkload script it will create contention and we can't handle retry logic inside the stored proc.  Therefore you'll need to uncomment the liquibase change log for the primary key update and let the tools execute the schema chnages below.
 
 
+1) Let's add the new UUID column to the table first and wait for the schema change to complete.
+```
+cockroach sql --url $conn_str -e """
+ALTER TABLE bookdb.library.message ADD COLUMN id_uuid UUID;
+CREATE INDEX idx_message_tbc ON library.message (id) STORING (id_uuid) WHERE id_uuid IS NULL;
+"""
+```
+Then wait for the jobs to complete, which you can verify from the CRDB admin console, i.e. https://localhost:8080/#/jobs and look for the statement above to show succeeded.  Or execute the query below and look for a succeeded status.
+```
+cockroach sql --url $conn_str -e """
+SELECT status FROM [SHOW JOBS] WHERE description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
+SELECT status FROM [SHOW JOBS] WHERE description LIKE 'CREATE INDEX idx_message_tbc%' ORDER BY created DESC LIMIT 1;
+"""
+```
 
 
+2) Then let's create a stored procedure to backfil the UUID values for our new column
+```
+cockroach sql --url $conn_str
 
+CREATE OR REPLACE PROCEDURE library.backfill_id_uuid()
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    remaining_count INT;
+BEGIN
+  LOOP
+    SELECT count(1) INTO remaining_count
+    FROM library.message
+    WHERE id_uuid IS NULL;
+
+    IF remaining_count = 0 THEN
+      RAISE NOTICE 'Backfill complete for library.message.';
+      EXIT;
+    END IF;
+
+    RAISE NOTICE '% remaining records, continuing...', remaining_count;
+
+    UPDATE library.message
+    SET id_uuid = id::UUID
+    WHERE id_uuid IS NULL
+    AND id IN (
+      SELECT id
+      FROM library.message
+      WHERE id_uuid IS NULL
+      LIMIT 10000
+    );
+
+    COMMIT;
+  END LOOP;
+END;
+$$;
+```
+
+And call the procedure to populate the data for our table.
+```
+cockroach sql --url $conn_str -e """
+call library.backfill_id_uuid();
+"""
+```
+
+
+3) Now we can set the NOT NULL and DEFAULT properties for the new id_uuid column.
+```
+cockroach sql --url $conn_str -e """
+ALTER TABLE library.message
+    ALTER COLUMN id_uuid SET NOT NULL,
+    ALTER COLUMN id_uuid SET DEFAULT gen_random_uuid();
+"""
+```
+Then wait for the jobs to complete, which you can verify from the CRDB admin console, i.e. https://localhost:8080/#/jobs and look for the statement above to show succeeded.  Or execute the query below and look for a succeeded status.
+```
+cockroach sql --url $conn_str -e """
+SELECT status FROM [SHOW JOBS] WHERE description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
+"""
+```
+
+
+4) Next we can switch the primary key to the new id_uuid column.
+```
+cockroach sql --url $conn_str -e """
+ALTER TABLE library.message ALTER PRIMARY KEY USING COLUMNS (id_uuid);
+"""
+```
+Then wait for the jobs to complete, which you can verify from the CRDB admin console, i.e. https://localhost:8080/#/jobs and look for the statement above to show succeeded.  Or execute the query below and look for a succeeded status.
+```
+cockroach sql --url $conn_str -e """
+SELECT status FROM [SHOW JOBS] WHERE description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
+"""
+```
+
+
+5) And switch the names for the current id and the new id_uuid columns.
+```
+cockroach sql --url $conn_str -e """
+DROP PROCEDURE library.backfill_id_uuid();
+ALTER TABLE library.message RENAME COLUMN id TO id_string;
+ALTER TABLE library.message RENAME COLUMN id_uuid TO id;
+"""
+```
+Then wait for the jobs to complete, which you can verify from the CRDB admin console, i.e. https://localhost:8080/#/jobs and look for the statement above to show succeeded.  Or execute the query below and look for a succeeded status.
+```
+cockroach sql --url $conn_str -e """
+SELECT status FROM [SHOW JOBS] WHERE description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
+"""
+```
+
+
+6) Finally we can drop the old id_string column.
+```
+cockroach sql --url $conn_str -e """
+ALTER TABLE library.message DROP COLUMN id_string;
+"""
+```
+Then wait for the jobs to complete, which you can verify from the CRDB admin console, i.e. https://localhost:8080/#/jobs and look for the statement above to show succeeded.  Or execute the query below and look for a succeeded status.
+```
+cockroach sql --url $conn_str -e """
+SELECT status FROM [SHOW JOBS] WHERE description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
+"""
+```

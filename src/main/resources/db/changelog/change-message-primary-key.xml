@@ -13,6 +13,21 @@
         </customChange>
     </changeSet>
 
+    <changeSet author="jleelong" id="create-uuid-index">
+        <comment>Create partial index for message UUIDs that have bnot been backfilled</comment>
+        <sql>
+            CREATE INDEX idx_message_tbc
+            ON library.message (id)
+            STORING (id_uuid)
+            WHERE id_uuid IS NULL;
+        </sql>
+
+        <!-- Wait for the index creation job to complete -->
+        <customChange class="com.cockroachdb.liquibase_demo.WaitForIndexCreation">
+            <param name="indexName" value="idx_message_tbc"/>
+        </customChange>
+    </changeSet>
+
     <changeSet author="jleelong" id="backfill-uuid-column">
         <comment>Backfill UUIDs by casting from existing string-based IDs</comment>
         <customChange class="com.cockroachdb.liquibase_demo.BackfillUUIDField">
@@ -24,8 +39,16 @@
         <comment>Alter properties of UUID column with default value</comment>
         <sql>
             ALTER TABLE library.message
-            ALTER COLUMN id_uuid SET NOT NULL,
             ALTER COLUMN id_uuid SET DEFAULT gen_random_uuid();
+        </sql>
+        <sql>
+            UPDATE library.message
+            SET id_uuid = gen_random_uuid()
+            WHERE id_uuid IS NULL;
+        </sql>
+        <sql>
+            ALTER TABLE library.message
+            ALTER COLUMN id_uuid SET NOT NULL;
         </sql>
 
         <!-- Wait for the table alteration job to complete -->
