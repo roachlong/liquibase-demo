@@ -128,8 +128,8 @@ CREATE INDEX idx_message_tbc ON library.message (id) STORING (id_uuid) WHERE id_
 Then wait for the jobs to complete, which you can verify from the CRDB admin console, i.e. https://localhost:8080/#/jobs and look for the statement above to show succeeded.  Or execute the query below and look for a succeeded status.
 ```
 cockroach sql --url $conn_str -e """
-SELECT status FROM [SHOW JOBS] WHERE description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
-SELECT status FROM [SHOW JOBS] WHERE description LIKE 'CREATE INDEX idx_message_tbc%' ORDER BY created DESC LIMIT 1;
+SELECT status FROM [SHOW JOBS] WHERE job_type <> 'SCHEMA CHANGE GC' AND description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
+SELECT status FROM [SHOW JOBS] WHERE job_type <> 'SCHEMA CHANGE GC' AND description LIKE 'CREATE INDEX idx_message_tbc%' ORDER BY created DESC LIMIT 1;
 """
 ```
 
@@ -191,7 +191,7 @@ ALTER TABLE library.message
 Then wait for the jobs to complete, which you can verify from the CRDB admin console, i.e. https://localhost:8080/#/jobs and look for the statement above to show succeeded.  Or execute the query below and look for a succeeded status.
 ```
 cockroach sql --url $conn_str -e """
-SELECT status FROM [SHOW JOBS] WHERE description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
+SELECT status FROM [SHOW JOBS] WHERE job_type <> 'SCHEMA CHANGE GC' AND description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
 """
 ```
 
@@ -205,7 +205,7 @@ ALTER TABLE library.message ALTER PRIMARY KEY USING COLUMNS (id_uuid);
 Then wait for the jobs to complete, which you can verify from the CRDB admin console, i.e. https://localhost:8080/#/jobs and look for the statement above to show succeeded.  Or execute the query below and look for a succeeded status.
 ```
 cockroach sql --url $conn_str -e """
-SELECT status FROM [SHOW JOBS] WHERE description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
+SELECT status FROM [SHOW JOBS] WHERE job_type <> 'SCHEMA CHANGE GC' AND description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
 """
 ```
 
@@ -221,7 +221,7 @@ ALTER TABLE library.message RENAME COLUMN id_uuid TO id;
 Then wait for the jobs to complete, which you can verify from the CRDB admin console, i.e. https://localhost:8080/#/jobs and look for the statement above to show succeeded.  Or execute the query below and look for a succeeded status.
 ```
 cockroach sql --url $conn_str -e """
-SELECT status FROM [SHOW JOBS] WHERE description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
+SELECT status FROM [SHOW JOBS] WHERE job_type <> 'SCHEMA CHANGE GC' AND description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
 """
 ```
 
@@ -235,6 +235,6 @@ ALTER TABLE library.message DROP COLUMN id_string;
 Then wait for the jobs to complete, which you can verify from the CRDB admin console, i.e. https://localhost:8080/#/jobs and look for the statement above to show succeeded.  Or execute the query below and look for a succeeded status.
 ```
 cockroach sql --url $conn_str -e """
-SELECT status FROM [SHOW JOBS] WHERE description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
+SELECT status FROM [SHOW JOBS] WHERE job_type <> 'SCHEMA CHANGE GC' AND description LIKE 'ALTER TABLE bookdb.library.message%' ORDER BY created DESC LIMIT 1;
 """
 ```

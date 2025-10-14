@@ -26,7 +26,7 @@ public class WaitForAlterTableCompletion implements CustomTaskChange {
         JdbcConnection jdbcConnection = (JdbcConnection) database.getConnection();
         Connection connection = jdbcConnection.getUnderlyingConnection();
 
-        String query = "SELECT status FROM [SHOW JOBS] WHERE description LIKE ? ORDER BY created DESC LIMIT 1";
+        String query = "SELECT status FROM [SHOW JOBS] WHERE job_type <> 'SCHEMA CHANGE GC' AND description LIKE ? ORDER BY created DESC LIMIT 1";
 
         try (PreparedStatement statement = connection.prepareStatement(query)) {
             Thread.sleep(1000); // Wait for the jobs to initialize
